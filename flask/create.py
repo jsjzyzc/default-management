@@ -6,6 +6,7 @@ app = create_app()
 
 fake = Faker()
 
+
 def create_fake_customers(n):
     industries = [
         '金融', '技术', '医疗', '教育', '制造业',
@@ -17,7 +18,7 @@ def create_fake_customers(n):
     ]
     credit_ratings = ['A', 'B', 'C', 'D']
     external_ratings = ['A', 'B', 'C', 'D']
-    
+
     with app.app_context():
         for _ in range(n):
             customer = Customer(
@@ -34,6 +35,7 @@ def create_fake_customers(n):
             db.session.add(customer)
         db.session.commit()
 
+
 def create_fake_default_reasons():
     reasons = [
         "6个月内，交易对手技术性或资金等原因，给当天结算带来头寸缺口2次以上",
@@ -49,6 +51,7 @@ def create_fake_default_reasons():
             db.session.add(DefaultReason(reason=reason, is_enabled=True))
         db.session.commit()
 
+
 def create_fake_default_applications(n):
     with app.app_context():
         default_reasons = DefaultReason.query.all()
@@ -56,13 +59,13 @@ def create_fake_default_applications(n):
         for _ in range(n):
             application_time = fake.date_time_this_year()
             audit_status = fake.random_element([0, 1, 2])
-            
+
             # 如果审核状态为0，审核时间为空
             audit_data = None
             if audit_status in [1, 2]:
                 # 如果审核状态为1或2，审核时间应晚于申请时间
                 audit_data = fake.date_time_between(start_date=application_time, end_date='+1y')
-            
+
             # 随机选择违约原因
             reason = fake.random_element(default_reasons).reason
 
@@ -84,6 +87,7 @@ def create_fake_default_applications(n):
                     customer.status = 1
                     db.session.add(customer)
         db.session.commit()
+
 
 def create_fake_default_rebirths(n):
     rebirth_reasons = [
@@ -108,7 +112,7 @@ def create_fake_default_rebirths(n):
 
             # 从已判定为违约的违约申请记录中随机选择一个
             selected_default_app = fake.random_element(approved_default_apps)
-            
+
             rebirth_status = fake.random_element([0, 1, 2])  # 0进行中，1同意，2拒绝
 
             # 创建重生记录
@@ -125,7 +129,8 @@ def create_fake_default_rebirths(n):
                 selected_default_app.default_status = 1
                 db.session.add(selected_default_app)
                 # 确保该客户的所有同意的违约记录的状态都为1更新客户状态为0
-                all_default_apps = DefaultApplication.query.filter_by(customer_id=selected_default_app.customer_id).all()
+                all_default_apps = DefaultApplication.query.filter_by(
+                    customer_id=selected_default_app.customer_id).all()
                 if all(app.default_status == 1 for app in all_default_apps):
                     customer = Customer.query.get(selected_default_app.customer_id)
                     if customer:
@@ -133,6 +138,7 @@ def create_fake_default_rebirths(n):
                         db.session.add(customer)
 
         db.session.commit()
+
 
 # 调用函数以生成数据
 create_fake_customers(100)

@@ -50,14 +50,21 @@ def login():
     password = data.get('password')
 
     if not username or not password:
-        return jsonify({'code': 400,  'message': 'Missing fields'}), 400
+        return jsonify({'code': 400, 'message': 'Missing fields'}), 400
 
     customer = Customer.query.filter_by(username=username).first()
 
     if customer is None or customer.password != password:
         return jsonify({'code': 400, 'message': 'Invalid username or password'}), 400
 
-    return jsonify({'code': 200, 'message': 'Login successful'}), 200
+    # 登录成功后返回用户ID
+    return jsonify({
+        'code': 200,
+        'message': 'Login successful',
+        'user_id': customer.customer_id,  # 返回用户的id
+        'username': customer.username,
+    }), 200
+
 
 
 #3.1违约原因维护
@@ -119,7 +126,6 @@ def default_applications():
         customer_id = data.get('customer_id')
         severity = data.get('severity')
         remarks = data.get('remarks')
-
         uploaduser_id = data.get('uploaduser_id')
 
         # 限制约定
@@ -239,7 +245,7 @@ def review_default_application():
                 'uploaduser_id': app.uploaduser_id,
                 'audit_data':app.audit_data,
                 'remarks': app.remarks,  
-                'default_status': app.default_status 
+                'default_status': app.  default_status
             } for app in pending_applications]
 
 
@@ -251,38 +257,56 @@ def review_default_application():
 # 3.4 违约信息查询
 @main.route('/default_applications/search', methods=['GET'])
 def search_default_applications():
-    data = request.get_json()
-    customer_name = data.get('customer_name')
+    # 从查询参数中获取 customer_name
+    customer_name = request.args.get('customer_name', '').strip()
 
     if not customer_name:
-        return jsonify({'message': '请输入用户名称'}), 404
-    else:
-        # 查找客户是否存在
-        customer_exists = db.session.query(Customer).filter(Customer.customer_name == customer_name).first()
-        if not customer_exists:
-            return jsonify({'message': '无该用户'}), 201
-        else:
-            # 创建查询
-            query = db.session.query(DefaultApplication).join(Customer, DefaultApplication.customer_id == Customer.customer_id)
-            #查询有没有违约信息
-            query = query.filter(Customer.customer_name == customer_name)
-            if query.count() == 0:
-                return jsonify({'message': '无违约信息'}), 201
-            else:
-                applications = query.all()
+        # 查询所有违约记录，并连接 Customer 表
+        applications = db.session.query(DefaultApplication).join(Customer).all()
 
-                return jsonify([{
-                    'id': app.id,
-                    'customer_id': app.customer_id,
-                    'customer_name': customer_name,
-                    'audit_status': app.audit_status,
-                    'severity': app.severity,
-                    'uploaduser_id': app.uploaduser_id,
-                    'application_time': app.application_time,
-                    'audit_data': app.audit_data,
-                    'remarks': app.remarks,
-                    'default_status': app.default_status
-                } for app in applications]), 200
+        if not applications:
+            return jsonify({'message': '没有违约记录'}), 200
+        else:
+            return jsonify([{
+                'id': app.id,
+                'customer_id': app.customer_id,
+                'customer_name': app.customer.customer_name,  # 通过关系访问 customer_name
+                'username': app.customer.username,  # 通过关系访问 username
+                'audit_status': app.audit_status,
+                'severity': app.severity,
+                'uploaduser_id': app.uploaduser_id,
+                'application_time': app.application_time.isoformat(),
+                'audit_data': app.audit_data,
+                'remarks': app.remarks,
+                'default_status': app.default_status
+            } for app in applications]), 200
+    else:
+        # 查询特定客户的违约记录
+        customer = db.session.query(Customer).filter(Customer.customer_name == customer_name).first()
+
+        if not customer:
+            return jsonify({'message': '无该用户'}), 201
+
+        applications = db.session.query(DefaultApplication).filter_by(customer_id=customer.customer_id).all()
+
+        if not applications:
+            return jsonify({'message': '无违约信息'}), 201
+        else:
+            return jsonify([{
+                'id': app.id,
+                'customer_id': app.customer_id,
+                'customer_name': app.customer.customer_name,
+                'username': app.customer.username,
+                'audit_status': app.audit_status,
+                'severity': app.severity,
+                'uploaduser_id': app.uploaduser_id,
+                'application_time': app.application_time.isoformat(),
+                'audit_data': app.audit_data,
+                'remarks': app.remarks,
+                'default_status': app.default_status
+            } for app in applications]), 200
+
+
 
 # 3.5 违约重生
 @main.route('/default_rebirths', methods=['GET','POST'])
